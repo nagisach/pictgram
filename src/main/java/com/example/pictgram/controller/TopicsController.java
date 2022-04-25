@@ -51,6 +51,7 @@ import com.example.pictgram.form.CommentForm;
 import com.example.pictgram.service.S3Wrapper;
 
 
+
 @Controller
 public class TopicsController {
 	
@@ -210,9 +211,9 @@ public class TopicsController {
         repository.saveAndFlush(entity);
         
         if (!isImageLocal) {
-        	String url = saveImageS3(image, entity);
-        	entity.setPath(url);
-        	repository.saveAndFlush(entity);
+	        String url = saveImageS3(image, entity);
+	        entity.setPath(url);
+	        repository.saveAndFlush(entity);
         }
 
         redirAttrs.addFlashAttribute("hasMessage", true);
@@ -246,10 +247,9 @@ public class TopicsController {
 	    String fileName = image.getOriginalFilename();
 	    File destFile = File.createTempFile("s3_", ".tmp");
 	    image.transferTo(destFile);
-	    
-    String url = "https://" + awsBucket + ".s3-" + awsDefaultRegion + ".amazonaws.com/" + path;
     
-    return url;
+	    String url = "https://" + awsBucket + ".s3-" + awsDefaultRegion + ".amazonaws.com/" + path;
+    
+	    return url;
     }
-
 }
