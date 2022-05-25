@@ -32,12 +32,17 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.thymeleaf.context.Context;
 
 import com.example.pictgram.entity.Topic;
 import com.example.pictgram.entity.UserInf;
 import com.example.pictgram.form.TopicForm;
 import com.example.pictgram.form.UserForm;
 import com.example.pictgram.repository.TopicRepository;
+import com.example.pictgram.service.S3Wrapper;
+import com.example.pictgram.service.SendMailService;
+
+
 
 import java.util.Locale;
 import org.springframework.context.MessageSource;
@@ -47,6 +52,8 @@ import com.example.pictgram.form.FavoriteForm;
 
 import com.example.pictgram.entity.Comment;
 import com.example.pictgram.form.CommentForm;
+
+
 
 
 
@@ -69,6 +76,19 @@ public class TopicsController {
 
     @Value("${image.local:false}")
     private String imageLocal;
+    
+    @Value("${AWS_BUCKET}")
+    private String awsBucket;
+    
+    @Value("${AWS_DEFAULT_REGION}")
+    private String awsDefaultRegion;
+    
+    @Autowired
+    S3Wrapper s3;
+    
+    @Autowired
+    private SendMailService sendMailService;
+
 
     @GetMapping(path = "/topics")
     public String index(Principal principal, Model model) throws IOException {
@@ -198,12 +218,24 @@ public class TopicsController {
         }
         entity.setDescription(form.getDescription());
         repository.saveAndFlush(entity);
+        
+        if (!isImageLocal) {
+        	String url = saveImageS3(image, entity);
+        	entity.setPath(url);
+        	repository.saveAndFlush(entity);
+        }
 
 
         redirAttrs.addFlashAttribute("hasMessage", true);
         redirAttrs.addFlashAttribute("class", "alert-info");
         //redirAttrs.addFlashAttribute("message", "投稿に成功しました。");
         redirAttrs.addFlashAttribute("message", messageSource.getMessage("topics.create.flash.2", new String[] {}, locale));
+        
+        Context context = new Context();
+        context.setVariable("title", "【Pictgram】新規投稿");
+        context.setVariable("name", user.getUsername());
+        context.setVariable("description", entity.getDescription());
+        sendMailService.sendMail(context);
 
         return "redirect:/topics";
     }
@@ -220,7 +252,20 @@ public class TopicsController {
         String fileName = image.getOriginalFilename();
         File destFile = new File(realPathToUploads, fileName);
         image.transferTo(destFile);
+        
 
         return destFile;
+    }
+    
+    private String saveImageS3(MultipartFile image, Topic entity) throws IOException {
+	    String path = "uploads/topic/image/" + entity.getId() + "/" + image.getOriginalFilename();
+	    s3.upload(image.getInputStream(), path);
+	    String fileName = image.getOriginalFilename();
+	    File destFile = File.createTempFile("s3_", ".tmp");
+	    image.transferTo(destFile);
+	    
+	    String url = "https://" + awsBucket + ".s3-" + awsDefaultRegion + ".amazonaws.com/" + path;
+	    
+	    return url;
     }
 }
